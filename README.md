@@ -1,84 +1,76 @@
-# <a name="introduction"></a> XPhoneBERT :  A Pre-trained Multilingual Model for Phoneme Representations for Text-to-Speech 
+## <a name="introduction"></a> VITS extended with our XPhoneBERT encoder
 
-XPhoneBERT is the first pre-trained multilingual model for phoneme representations for text-to-speech(TTS). XPhoneBERT has the same model architecture as BERT-base, trained using the RoBERTa pre-training approach on 330M phoneme-level sentences from nearly 100 languages and locales. Experimental results show that employing XPhoneBERT as an input phoneme encoder significantly boosts the performance of a strong neural TTS model in terms of naturalness and prosody and also helps produce fairly high-quality speech with limited training data.
+We provide a procedure to help you train the strong text-to-speech baseline [VITS](https://github.com/jaywalnut310/vits) with our XPhoneBERT encoder on [the LJSpeech dataset](https://keithito.com/LJ-Speech-Dataset/) or your own dataset.
 
-The general architecture and experimental results of XPhoneBERT can be found in [our INTERSPEECH 2023 paper](https://arxiv.org/abs/2305.19709):
+### <a name="pre-require"></a> Pre-requisites
 
-    @inproceedings{xphonebert,
-    title     = {{XPhoneBERT: A Pre-trained Multilingual Model for Phoneme Representations for Text-to-Speech}},
-    author    = {Linh The Nguyen and Thinh Pham and Dat Quoc Nguyen},
-    booktitle = {Proceedings of the 24th Annual Conference of the International Speech Communication Association (INTERSPEECH)},
-    year      = {2023}
-    }
-
-**Please CITE** our paper when XPhoneBERT is used to help produce published results or is incorporated into other software.
-
-## <a name="transformers"></a> Using XPhoneBERT with `transformers` 
-
-### Installation <a name="install2"></a>
-
-- Install `transformers` with pip: `pip install transformers`, or install `transformers` [from source](https://huggingface.co/docs/transformers/installation#installing-from-source). 
-
-- Install `text2phonemesequence`: `pip install text2phonemesequence` <br>  Our [`text2phonemesequence`](https://github.com/thelinhbkhn2014/Text2PhonemeSequence) package is to convert text sequences into phoneme-level sequences, employed to construct our multilingual phoneme-level pre-training data. We build `text2phonemesequence` by incorporating the [CharsiuG2P](https://github.com/lingjzhu/CharsiuG2P/tree/main) and the [segments](https://pypi.org/project/segments/) toolkits that perform text-to-phoneme conversion and phoneme segmentation, respectively. 
-
-- **Notes**
-
-	-	Initializing `text2phonemesequence` for each language requires its corresponding ISO 639-3 code. The ISO 639-3 codes of supported languages are available at [HERE](https://github.com/VinAIResearch/XPhoneBERT/blob/main/LanguageISO639-3Codes.md).
-	
-	- `text2phonemesequence` takes a word-segmented sequence as input. And users might also perform text normalization on the word-segmented sequence before feeding into `text2phonemesequence`. When creating our pre-training data, we perform word and sentence segmentation on all text documents in each language by using the [spaCy](https://spacy.io) toolkit, except for Vietnamese where we employ the [VnCoreNLP](https://github.com/vncorenlp/VnCoreNLP) toolkit. We also use the text normalization component from the [NVIDIA NeMo toolkit](https://github.com/NVIDIA/NeMo) for English, German, Spanish and Chinese, and the [Vinorm](https://github.com/v-nhandt21/Vinorm) text normalization package for Vietnamese.
+- Python >= 3.6
+- Install python requirements. Please refer to [requirements.txt](requirements.txt): `
+pip install -r requirements.txt`
 
 
-### <a name="models2"></a> Pre-trained model 
+### <a name="data-prepare"></a> Dataset preparation
 
-Model | #params | Arch. | Max length | Pre-training data
----|---|---|---|---
-`vinai/xphonebert-base` | 88M | base | 512 | 330M phoneme-level sentences from nearly 100 languages and locales
+#### For LJ Speech dataset
+
+- Download and extract the LJ Speech dataset, then create a link to the dataset's wavs folder: `ln -s /path/to/LJSpeech-1.1/wavs DUMMY`
+
+- Convert LJ Speech text transcriptions into phoneme sequences using the following commands:
+	- `python preprocess.py --input_file filelists/ljs_audio_text_train_filelist_preprocessed.txt --output_file filelists/ljs_audio_text_train_filelist_phoneme_sequence.txt --language eng-us --batch_size 64 --cuda`
+	- `python preprocess.py --input_file filelists/ljs_audio_text_val_filelist_preprocessed.txt --output_file filelists/ljs_audio_text_val_filelist_phoneme_sequence.txt --language eng-us --batch_size 64 --cuda`
 
 
-### Example usage <a name="usage2"></a>
+#### For another TTS dataset
 
-```python
-from transformers import AutoModel, AutoTokenizer
-from text2phonemesequence import Text2PhonemeSequence
+- Prepare a dataset with the following structure:
 
-# Load XPhoneBERT model and its tokenizer
-xphonebert = AutoModel.from_pretrained("vinai/xphonebert-base")
-tokenizer = AutoTokenizer.from_pretrained("vinai/xphonebert-base")
-
-# Load Text2PhonemeSequence
-text2phone_model = Text2PhonemeSequence(language='eng-us', is_cuda=True)
-
-# Input sequence that is already word-segmented (and text-normalized if applicable)
-sentence = 'It has used other treasury law enforcement agents on special experiments in building and route surveys in places to which the president frequently travels .'  
-
-input_phonemes = text2phone_model.infer_sentence(sentence)
-
-input_ids = tokenizer(input_phonemes, return_tensors="pt")
-
-with torch.no_grad():
-    features = xphonebert(**input_ids)
+```
+Your_dataset_directory/
+├── texts
+    ├── training_texts_file.txt
+    ├── validation_texts_file.txt
+    ├── test_texts_file.txt
+├── wavs
+    ├── audio_1.wav
+    ├── ...audio files in .wav format...
 ```
 
-## License
+  - The `.txt` files in the `texts` directory contain text transcripts for training, validation and test, respectively. Each `.txt` file is formatted as:
+  
+    - `DUMMY/audio_1.wav|text transcript of the audio_1.wav , in which the text transcript is already word-segmented ( and text-normalized if applicable )`
     
-	MIT License
+    - For example, in the LJSpeech dataset: `DUMMY/LJ022-0023.wav|The overwhelming majority of people in this country know how to sift the wheat from the chaff in what they hear and what they read`
 
-	Copyright (c) 2023 VinAI Research
+- Create a link to your dataset's `wavs` directory:
 
-	Permission is hereby granted, free of charge, to any person obtaining a copy
-	of this software and associated documentation files (the "Software"), to deal
-	in the Software without restriction, including without limitation the rights
-	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-	copies of the Software, and to permit persons to whom the Software is
-	furnished to do so, subject to the following conditions:
+	- `ln -s /path/to/Your_dataset_directory/wavs DUMMY`
 
-	The above copyright notice and this permission notice shall be included in all
-	copies or substantial portions of the Software.
+- Move/copy your `.txt` training, validation and test files to the `filelists` directory, and then run the `preprocess.py` file (similar to as run for the LJSpeech dataset), for example:
 
-	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-	SOFTWARE.
+	- `cp /path/to/Your_dataset_directory/texts/*.txt /path/to/VITS_with_XPhoneBERT/filelists/`
+	- `python preprocess.py --input_file filelists/training_texts_file.txt --output_file filelists/training_phoneme_sequences.txt --language <ISO-639-3-language-code> --batch_size 64 --cuda`
+	- `python preprocess.py --input_file filelists/validation_texts_file.txt --output_file filelists/validation_phoneme_sequences.txt --language <ISO-639-3-language-code> --batch_size 64 --cuda`
+
+`<ISO-639-3-language-code>` is the corresponding ISO 639-3 code of your own dataset's language. The ISO 639-3 codes of supported languages are available at [HERE](https://github.com/VinAIResearch/XPhoneBERT/blob/main/LanguageISO639-3Codes.md).
+
+### Building Monotonic Alignment Search
+```sh
+# Cython-version Monotonoic Alignment Search
+cd monotonic_align
+python setup.py build_ext --inplace
+```
+
+
+### <a name="training"></a> Training Example
+```sh
+# LJ Speech
+python train.py -c configs/ljs_base_xphonebert.json -m ljs_base_xphonebert
+
+# Your own dataset: You need to adjust the config file to appropriate with your dataset.
+```
+
+In our settings, we use 4 A100 GPUs (40GB each) for training. If users have a smaller computational resource, you need to decrease the batch size to avoid the Out-of-memory problem (it is advisable to decrease the initial learning rate accordingly). 
+
+### <a name="infer"></a> Inference Example
+See [inference.py](inference.py) file and justify corresponding paths in [inference.py](inference.py).
+
